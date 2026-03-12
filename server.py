@@ -1,115 +1,129 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+import sqlite3
+import datetime
 import re
-import random
 
 app = Flask(__name__)
 CORS(app)
 
-# -------- Clinic Knowledge Base --------
-clinic_info = {
-    "name": "Om Datta Dental Clinic",
-    "location": "Ghatkopar West, Mumbai",
-    "timings": "Monday to Saturday 10 AM to 1 PM and 5 PM to 9 PM",
-    "services": [
-        "Root canal treatment",
-        "Teeth cleaning",
-        "Dental implants",
-        "Braces treatment",
-        "Tooth extraction"
-    ]
-}
+DB="clinic.db"
 
-# -------- Hindi Detection --------
+# ---------- DATABASE INIT ----------
+def init_db():
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS patients(
+    id INTEGER PRIMARY KEY,
+    name TEXT,
+    phone TEXT,
+    email TEXT,
+    address TEXT
+    )
+    """)
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS appointments(
+    id INTEGER PRIMARY KEY,
+    patient_id INTEGER,
+    service TEXT,
+    date TEXT,
+    time TEXT
+    )
+    """)
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS chats(
+    id INTEGER PRIMARY KEY,
+    message TEXT,
+    response TEXT,
+    timestamp TEXT
+    )
+    """)
+
+    conn.commit()
+    conn.close()
+
+init_db()
+
+# ---------- LANGUAGE DETECT ----------
 def is_hindi(text):
     return re.search("[\u0900-\u097F]", text)
 
-# -------- Intent Detection --------
-def detect_intent(text):
+# ---------- CHECK SLOT ----------
+def is_slot_available(date,time):
 
-    if any(word in text for word in ["appointment","book","visit","schedule","अपॉइंटमेंट"]):
-        return "appointment"
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
 
-    if any(word in text for word in ["pain","दर्द"]):
-        return "pain"
+    c.execute(
+    "SELECT * FROM appointments WHERE date=? AND time=?",
+    (date,time)
+    )
 
-    if any(word in text for word in ["clean","cleaning","सफाई"]):
-        return "cleaning"
+    result = c.fetchone()
+    conn.close()
 
-    if any(word in text for word in ["where","location","कहाँ"]):
-        return "location"
+    return result is None
 
-    if any(word in text for word in ["time","hours","समय"]):
-        return "timing"
 
-    if any(word in text for word in ["service","treatment","services"]):
-        return "services"
-
-    return "general"
-
-# -------- Chat Route --------
-@app.route("/chat", methods=["POST"])
+# ---------- CHAT ROUTE ----------
+@app.route("/chat",methods=["POST"])
 def chat():
 
     data = request.json
     text = data.get("text","").lower()
 
     hindi = is_hindi(text)
-    intent = detect_intent(text)
 
-    # -------- HINDI RESPONSES --------
-    if hindi:
+    if "appointment" in text or "अपॉइंटमेंट" in text:
 
-        if intent == "appointment":
-            reply = "ज़रूर। आप किस तारीख को अपॉइंटमेंट लेना चाहेंगे?"
+        reply = "Please tell your name."
 
-        elif intent == "pain":
-            reply = "अगर आपको दांत में दर्द है तो डॉक्टर से तुरंत चेकअप करवाना अच्छा रहेगा। क्या आप अपॉइंटमेंट बुक करना चाहेंगे?"
+    elif "name" in text:
 
-        elif intent == "cleaning":
-            reply = "हमारे क्लिनिक में दांतों की सफाई की सुविधा उपलब्ध है। आप कब आना चाहेंगे?"
+        reply = "Please provide your phone number."
 
-        elif intent == "location":
-            reply = f"हमारा क्लिनिक {clinic_info['location']} में स्थित है।"
+    elif "phone" in text:
 
-        elif intent == "timing":
-            reply = f"हमारा क्लिनिक {clinic_info['timings']} खुला रहता है।"
+        reply = "Which service do you need? Cleaning, root canal or braces?"
 
-        elif intent == "services":
-            reply = "हम रूट कैनाल, दांतों की सफाई, इम्प्लांट और ब्रेसेस जैसी सेवाएं प्रदान करते हैं।"
+    elif "clean" in text or "सफाई" in text:
 
+        reply = "What date would you like to visit?"
+
+    elif "tomorrow" in text:
+
+        date = str(datetime.date.today()+datetime.timedelta(days=1))
+        time="18:00"
+
+        if is_slot_available(date,time):
+            reply = f"Your appointment is available tomorrow at 6 pm. Should I confirm?"
         else:
-            reply = "नमस्ते। ओम दत्ता डेंटल क्लिनिक में आपका स्वागत है। मैं आपकी कैसे मदद कर सकता हूँ?"
+            reply = "That slot is already booked. Please choose another time."
 
-        return jsonify({"reply": reply, "lang": "hi"})
-
-
-    # -------- ENGLISH RESPONSES --------
     else:
 
-        if intent == "appointment":
-            reply = "Sure. What date would you like to book your appointment?"
-
-        elif intent == "pain":
-            reply = "Tooth pain should be checked by a dentist. Would you like to book an appointment?"
-
-        elif intent == "cleaning":
-            reply = "Teeth cleaning is available at our clinic. When would you like to visit?"
-
-        elif intent == "location":
-            reply = f"Our clinic is located in {clinic_info['location']}."
-
-        elif intent == "timing":
-            reply = f"Our clinic timings are {clinic_info['timings']}."
-
-        elif intent == "services":
-            reply = "We provide treatments like root canal, teeth cleaning, dental implants and braces."
-
+        if hindi:
+            reply="नमस्ते। ओम दत्ता डेंटल क्लिनिक में आपका स्वागत है।"
         else:
-            reply = f"Hello. Welcome to {clinic_info['name']}. How can I help you today?"
+            reply="Hello welcome to Om Datta Dental Clinic. How can I help you?"
 
-        return jsonify({"reply": reply, "lang": "en"})
+    conn=sqlite3.connect(DB)
+    c=conn.cursor()
+
+    c.execute(
+    "INSERT INTO chats(message,response,timestamp) VALUES(?,?,?)",
+    (text,reply,str(datetime.datetime.now()))
+    )
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({"reply":reply,"lang":"hi" if hindi else "en"})
 
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+if __name__=="__main__":
+    app.run(host="0.0.0.0",port=10000)
