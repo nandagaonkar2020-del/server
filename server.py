@@ -10,7 +10,7 @@ def chat():
     data = request.json
     text = data.get("text","").lower()
 
-    if "appointment" in text:
+    if "hello" in text:
         reply = "Sure. What date would you like to book your appointment?"
     elif "pain" in text:
         reply = "I'm sorry to hear that. Would you like an urgent appointment?"
