@@ -1,6 +1,8 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
 
 @app.route("/chat", methods=["POST"])
 def chat():
@@ -11,9 +13,7 @@ def chat():
     if "appointment" in text:
         reply = "Sure. What date would you like to book your appointment?"
     elif "pain" in text:
-        reply = "I’m sorry to hear that. Would you like an urgent appointment?"
-    elif "cleaning" in text:
-        reply = "Teeth cleaning is available. When would you like to visit?"
+        reply = "I'm sorry to hear that. Would you like an urgent appointment?"
     else:
         reply = "Hello. How can I help you today?"
 
