@@ -1,14 +1,53 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import re
+import random
 
 app = Flask(__name__)
 CORS(app)
 
-# Detect Hindi characters
+# -------- Clinic Knowledge Base --------
+clinic_info = {
+    "name": "Om Datta Dental Clinic",
+    "location": "Ghatkopar West, Mumbai",
+    "timings": "Monday to Saturday 10 AM to 1 PM and 5 PM to 9 PM",
+    "services": [
+        "Root canal treatment",
+        "Teeth cleaning",
+        "Dental implants",
+        "Braces treatment",
+        "Tooth extraction"
+    ]
+}
+
+# -------- Hindi Detection --------
 def is_hindi(text):
     return re.search("[\u0900-\u097F]", text)
 
+# -------- Intent Detection --------
+def detect_intent(text):
+
+    if any(word in text for word in ["appointment","book","visit","schedule","अपॉइंटमेंट"]):
+        return "appointment"
+
+    if any(word in text for word in ["pain","दर्द"]):
+        return "pain"
+
+    if any(word in text for word in ["clean","cleaning","सफाई"]):
+        return "cleaning"
+
+    if any(word in text for word in ["where","location","कहाँ"]):
+        return "location"
+
+    if any(word in text for word in ["time","hours","समय"]):
+        return "timing"
+
+    if any(word in text for word in ["service","treatment","services"]):
+        return "services"
+
+    return "general"
+
+# -------- Chat Route --------
 @app.route("/chat", methods=["POST"])
 def chat():
 
@@ -16,57 +55,58 @@ def chat():
     text = data.get("text","").lower()
 
     hindi = is_hindi(text)
+    intent = detect_intent(text)
 
-    # ---------------- HINDI RESPONSES ----------------
+    # -------- HINDI RESPONSES --------
     if hindi:
 
-        if "नमस्ते" in text or "hello" in text:
-            reply = "नमस्ते। ओम दत्ता डेंटल क्लिनिक में आपका स्वागत है। मैं आपकी कैसे मदद कर सकता हूँ?"
+        if intent == "appointment":
+            reply = "ज़रूर। आप किस तारीख को अपॉइंटमेंट लेना चाहेंगे?"
 
-        elif "दर्द" in text:
-            reply = "क्या आपको दांत में दर्द हो रहा है? अगर आप चाहें तो मैं आपके लिए अपॉइंटमेंट बुक कर सकता हूँ।"
+        elif intent == "pain":
+            reply = "अगर आपको दांत में दर्द है तो डॉक्टर से तुरंत चेकअप करवाना अच्छा रहेगा। क्या आप अपॉइंटमेंट बुक करना चाहेंगे?"
 
-        elif "अपॉइंटमेंट" in text:
-            reply = "आप किस तारीख और समय पर अपॉइंटमेंट लेना चाहेंगे?"
+        elif intent == "cleaning":
+            reply = "हमारे क्लिनिक में दांतों की सफाई की सुविधा उपलब्ध है। आप कब आना चाहेंगे?"
 
-        elif "सफाई" in text or "क्लीनिंग" in text:
-            reply = "दांतों की सफाई हमारे क्लिनिक में उपलब्ध है। आप कब आना चाहेंगे?"
+        elif intent == "location":
+            reply = f"हमारा क्लिनिक {clinic_info['location']} में स्थित है।"
 
-        elif "कहाँ" in text or "लोकेशन" in text:
-            reply = "हमारा क्लिनिक घाटकोपर वेस्ट, मुंबई में स्थित है।"
+        elif intent == "timing":
+            reply = f"हमारा क्लिनिक {clinic_info['timings']} खुला रहता है।"
 
-        elif "समय" in text or "टाइम" in text:
-            reply = "हम सोमवार से शनिवार सुबह 10 से 1 और शाम 5 से 9 बजे तक खुले रहते हैं।"
+        elif intent == "services":
+            reply = "हम रूट कैनाल, दांतों की सफाई, इम्प्लांट और ब्रेसेस जैसी सेवाएं प्रदान करते हैं।"
 
         else:
-            reply = "मैं आपकी मदद करने के लिए यहाँ हूँ। क्या आप अपॉइंटमेंट बुक करना चाहते हैं?"
+            reply = "नमस्ते। ओम दत्ता डेंटल क्लिनिक में आपका स्वागत है। मैं आपकी कैसे मदद कर सकता हूँ?"
 
         return jsonify({"reply": reply, "lang": "hi"})
 
 
-    # ---------------- ENGLISH RESPONSES ----------------
+    # -------- ENGLISH RESPONSES --------
     else:
 
-        if "hello" in text or "hi" in text:
-            reply = "Hello. Welcome to Om Datta Dental Clinic. How can I help you today?"
+        if intent == "appointment":
+            reply = "Sure. What date would you like to book your appointment?"
 
-        elif "pain" in text or "tooth pain" in text:
-            reply = "I’m sorry to hear that. Would you like to book an urgent dental appointment?"
+        elif intent == "pain":
+            reply = "Tooth pain should be checked by a dentist. Would you like to book an appointment?"
 
-        elif "appointment" in text or "book" in text:
-            reply = "Sure. What date and time would you like to book your appointment?"
-
-        elif "cleaning" in text:
+        elif intent == "cleaning":
             reply = "Teeth cleaning is available at our clinic. When would you like to visit?"
 
-        elif "location" in text or "where" in text:
-            reply = "Our clinic is located in Ghatkopar West, Mumbai."
+        elif intent == "location":
+            reply = f"Our clinic is located in {clinic_info['location']}."
 
-        elif "time" in text or "hours" in text:
-            reply = "Our clinic is open Monday to Saturday from 10 AM to 1 PM and 5 PM to 9 PM."
+        elif intent == "timing":
+            reply = f"Our clinic timings are {clinic_info['timings']}."
+
+        elif intent == "services":
+            reply = "We provide treatments like root canal, teeth cleaning, dental implants and braces."
 
         else:
-            reply = "Hello. How can I help you today?"
+            reply = f"Hello. Welcome to {clinic_info['name']}. How can I help you today?"
 
         return jsonify({"reply": reply, "lang": "en"})
 
