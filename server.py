@@ -31,13 +31,18 @@ def init_db():
 
 init_db()
 
+@app.route("/")
+def home():
+    return "AI Dental Receptionist API running"
 
-@app.route("/chat",methods=["POST"])
+@app.route("/chat", methods=["POST"])
 def chat():
+    try:
 
-    text=request.json.get("text")
+        data = request.json
+        text = data.get("text","")
 
-    prompt = f"""
+        prompt = """
 You are an AI receptionist for Om Datta Dental Clinic.
 
 Clinic details:
@@ -49,55 +54,43 @@ IMPORTANT LANGUAGE RULE:
 Users may speak in English, Hindi, or Hinglish.
 Always reply in Hinglish (Hindi words written using English letters).
 
-Examples:
-User: Hello
-Reply: Namaste ji, Om Datta Dental Clinic me aapka swagat hai. Main kaise madad kar sakta hoon?
-
-User: Mujhe tooth pain hai
-Reply: Agar aapko tooth pain hai to dentist se check karwana zaroori hai. Kya aap appointment book karna chahenge?
-
-User: I want appointment
-Reply: Zaroor. Aap kis date aur time par appointment lena chahenge?
-
-Your job is to help patients with:
-- booking appointments
-- clinic timings
-- available services
-- clinic location
-
-When booking an appointment follow this flow:
-1. Ask patient's name.
-2. Ask phone number.
-3. Ask which dental service they need (cleaning, root canal, braces, etc).
-4. Ask preferred date and time.
-5. Confirm appointment politely.
-
-Rules:
-- Be friendly and polite.
-- Speak like a human receptionist.
-- Keep responses short and conversational.
-- Always respond in Hinglish.
+Be polite, friendly and short in responses.
 """
 
-    response=requests.post(
-        "https://api.groq.com/openai/v1/chat/completions",
-        headers={
-            "Authorization":f"Bearer {GROQ_API}",
-            "Content-Type":"application/json"
-        },
-        json={
-            "model":"llama3-8b-8192",
-            "messages":[
-                {"role":"system","content":prompt},
-                {"role":"user","content":text}
-            ]
-        }
-    )
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {GROQ_API}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "llama3-8b-8192",
+                "messages":[
+                    {"role":"system","content":prompt},
+                    {"role":"user","content":text}
+                ]
+            }
+        )
 
-    reply=response.json()["choices"][0]["message"]["content"]
+        data = response.json()
 
-    return jsonify({"reply":reply})
+        # Handle API errors safely
+        if "choices" not in data:
+            return jsonify({
+                "reply": "Server AI error",
+                "debug": data
+            })
+
+        reply = data["choices"][0]["message"]["content"]
+
+        return jsonify({"reply": reply})
+
+    except Exception as e:
+
+        return jsonify({
+            "reply": "Server error occurred",
+            "error": str(e)
+        })
     
-
 if __name__=="__main__":
     app.run(host="0.0.0.0",port=10000)
