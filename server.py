@@ -7,6 +7,7 @@ CORS(app)
 
 DB = "clinic.db"
 
+
 def init_db():
     conn = sqlite3.connect(DB)
     c = conn.cursor()
@@ -25,6 +26,7 @@ def init_db():
     conn.commit()
     conn.close()
 
+
 init_db()
 
 
@@ -33,47 +35,75 @@ def home():
     return "AI Dental Receptionist API running"
 
 
+# Book appointment
 @app.route("/book", methods=["POST"])
 def book():
 
-    data = request.json
+    try:
 
-    name = data.get("name")
-    phone = data.get("phone")
-    service = data.get("service")
-    date = data.get("date")
-    time = data.get("time")
+        data = request.json
+
+        name = data.get("name")
+        phone = data.get("phone")
+        service = data.get("service")
+        date = data.get("date")
+        time = data.get("time")
+
+        conn = sqlite3.connect(DB)
+        c = conn.cursor()
+
+        # Check if slot already booked
+        c.execute(
+            "SELECT * FROM appointments WHERE date=? AND time=?",
+            (date, time)
+        )
+
+        exists = c.fetchone()
+
+        if exists:
+            conn.close()
+
+            return jsonify({
+                "status": "unavailable",
+                "message": "Yeh time slot already booked hai. Please doosra time choose kare."
+            })
+
+        # Save appointment
+        c.execute(
+            "INSERT INTO appointments(name,phone,service,date,time) VALUES(?,?,?,?,?)",
+            (name, phone, service, date, time)
+        )
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            "status": "confirmed",
+            "message": "Appointment successfully book ho gaya."
+        })
+
+    except Exception as e:
+
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        })
+
+
+# View all appointments (for testing)
+@app.route("/appointments")
+def appointments():
 
     conn = sqlite3.connect(DB)
     c = conn.cursor()
 
-    # check double booking
-    c.execute(
-        "SELECT * FROM appointments WHERE date=? AND time=?",
-        (date, time)
-    )
+    c.execute("SELECT * FROM appointments")
 
-    exists = c.fetchone()
+    rows = c.fetchall()
 
-    if exists:
-        conn.close()
-        return jsonify({
-            "status": "unavailable",
-            "message": "Yeh time slot already booked hai. Please doosra time choose kare."
-        })
-
-    c.execute(
-        "INSERT INTO appointments(name,phone,service,date,time) VALUES(?,?,?,?,?)",
-        (name, phone, service, date, time)
-    )
-
-    conn.commit()
     conn.close()
 
-    return jsonify({
-        "status": "confirmed",
-        "message": "Appointment successfully book ho gaya."
-    })
+    return jsonify(rows)
 
 
 if __name__ == "__main__":
