@@ -1,28 +1,24 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import requests
 import sqlite3
-import os
 
 app = Flask(__name__)
 CORS(app)
 
-GROQ_API = os.environ.get("GROQ_API_KEY")
-
-DB="clinic.db"
+DB = "clinic.db"
 
 def init_db():
-    conn=sqlite3.connect(DB)
-    c=conn.cursor()
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
 
     c.execute("""
     CREATE TABLE IF NOT EXISTS appointments(
-    id INTEGER PRIMARY KEY,
-    name TEXT,
-    phone TEXT,
-    service TEXT,
-    date TEXT,
-    time TEXT
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        phone TEXT,
+        service TEXT,
+        date TEXT,
+        time TEXT
     )
     """)
 
@@ -31,83 +27,54 @@ def init_db():
 
 init_db()
 
+
 @app.route("/")
 def home():
     return "AI Dental Receptionist API running"
 
 
-@app.route("/chat", methods=["POST"])
-def chat():
+@app.route("/book", methods=["POST"])
+def book():
 
-    try:
+    data = request.json
 
-        data=request.json
-        text=data.get("text","")
+    name = data.get("name")
+    phone = data.get("phone")
+    service = data.get("service")
+    date = data.get("date")
+    time = data.get("time")
 
-        prompt="""
-You are an AI receptionist for Om Datta Dental Clinic.
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
 
-Clinic details:
-Name: Om Datta Dental Clinic
-Location: Ghatkopar West Mumbai
-Timings: Monday to Saturday 10 AM to 1 PM and 5 PM to 9 PM
+    # check double booking
+    c.execute(
+        "SELECT * FROM appointments WHERE date=? AND time=?",
+        (date, time)
+    )
 
-IMPORTANT:
-User may speak English, Hindi or Hinglish.
+    exists = c.fetchone()
 
-Always reply in Hinglish (Hindi written in English letters).
-
-Example replies:
-
-User: hello
-Reply: Namaste ji Om Datta Dental Clinic me aapka swagat hai. Main kaise madad kar sakta hoon?
-
-User: mujhe tooth pain hai
-Reply: Agar aapko tooth pain hai to dentist se check karwana zaroori hai. Kya aap appointment book karna chahenge?
-
-User: I want appointment
-Reply: Zaroor. Aap kis date aur time par appointment lena chahenge?
-
-Keep answers short and natural like a receptionist.
-"""
-
-        response=requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={
-                "Authorization":f"Bearer {GROQ_API}",
-                "Content-Type":"application/json"
-            },
-            json={
-                "model":"llama3-8b-8192",
-                "messages":[
-                    {"role":"system","content":prompt},
-                    {"role":"user","content":text}
-                ]
-            }
-        )
-
-        print("GROQ RESPONSE:",response.text)
-
-        data=response.json()
-
-        if "choices" not in data:
-            return jsonify({
-                "reply":"AI service error",
-                "debug":data
-            })
-
-        reply=data["choices"][0]["message"]["content"]
-
-        return jsonify({"reply":reply})
-
-
-    except Exception as e:
-
+    if exists:
+        conn.close()
         return jsonify({
-            "reply":"Server error occurred",
-            "error":str(e)
+            "status": "unavailable",
+            "message": "Yeh time slot already booked hai. Please doosra time choose kare."
         })
 
+    c.execute(
+        "INSERT INTO appointments(name,phone,service,date,time) VALUES(?,?,?,?,?)",
+        (name, phone, service, date, time)
+    )
 
-if __name__=="__main__":
-    app.run(host="0.0.0.0",port=10000)
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "status": "confirmed",
+        "message": "Appointment successfully book ho gaya."
+    })
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
