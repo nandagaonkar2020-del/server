@@ -1,109 +1,53 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import sqlite3
+
+from appointment import create_appointment, cancel_appointment
+from date_parser import parse_date
 
 app = Flask(__name__)
 CORS(app)
 
-DB = "clinic.db"
-
-
-def init_db():
-    conn = sqlite3.connect(DB)
-    c = conn.cursor()
-
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS appointments(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT,
-        phone TEXT,
-        service TEXT,
-        date TEXT,
-        time TEXT
-    )
-    """)
-
-    conn.commit()
-    conn.close()
-
-
-init_db()
-
 
 @app.route("/")
 def home():
-    return "AI Dental Receptionist API running"
+    return "AI Receptionist Running"
 
 
-# Book appointment
 @app.route("/book", methods=["POST"])
 def book():
 
-    try:
+    data = request.json
 
-        data = request.json
+    name = data.get("name")
+    phone = data.get("phone")
+    service = data.get("service")
 
-        name = data.get("name")
-        phone = data.get("phone")
-        service = data.get("service")
-        date = data.get("date")
-        time = data.get("time")
+    date_text = data.get("date")
+    time = data.get("time")
 
-        conn = sqlite3.connect(DB)
-        c = conn.cursor()
+    date = parse_date(date_text)
 
-        # Check if slot already booked
-        c.execute(
-            "SELECT * FROM appointments WHERE date=? AND time=?",
-            (date, time)
-        )
-
-        exists = c.fetchone()
-
-        if exists:
-            conn.close()
-
-            return jsonify({
-                "status": "unavailable",
-                "message": "Yeh time slot already booked hai. Please doosra time choose kare."
-            })
-
-        # Save appointment
-        c.execute(
-            "INSERT INTO appointments(name,phone,service,date,time) VALUES(?,?,?,?,?)",
-            (name, phone, service, date, time)
-        )
-
-        conn.commit()
-        conn.close()
-
-        return jsonify({
-            "status": "confirmed",
-            "message": "Appointment successfully book ho gaya."
-        })
-
-    except Exception as e:
-
+    if not date:
         return jsonify({
             "status": "error",
-            "message": str(e)
+            "message": "Invalid date"
         })
 
+    result = create_appointment(name, phone, service, date, time)
 
-# View all appointments (for testing)
-@app.route("/appointments")
-def appointments():
+    return jsonify(result)
 
-    conn = sqlite3.connect(DB)
-    c = conn.cursor()
 
-    c.execute("SELECT * FROM appointments")
+@app.route("/cancel", methods=["POST"])
+def cancel():
 
-    rows = c.fetchall()
+    data = request.json
 
-    conn.close()
+    phone = data.get("phone")
 
-    return jsonify(rows)
+    result = cancel_appointment(phone)
+
+    return jsonify(result)
 
 
 if __name__ == "__main__":
