@@ -59,6 +59,30 @@ def book():
 
     return jsonify({"status":"confirmed"})
 
+@app.route("/book", methods=["POST"])
+def book():
+
+    data = request.json
+
+    print("Incoming request:", data)
+
+    name = data.get("name")
+    phone = data.get("phone")
+    service = data.get("service")
+    date = data.get("date")
+    time = data.get("time")
+
+    appointments.insert_one({
+        "name": name,
+        "phone": phone,
+        "service": service,
+        "date": date,
+        "time": time
+    })
+
+    print("Saved to DB")
+
+    return {"status": "confirmed"}
 
 @app.route("/appointments")
 def all():
